@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import urllib
-import urllib2
+import urllib.request as urllib2
 
 from marrow.mailer.exc import MailConfigurationException, DeliveryFailedException, MessageFailedException
 
