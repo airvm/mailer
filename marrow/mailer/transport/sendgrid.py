@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-import urllib
-import urllib.request as urllib2
+import sendgrid
 
+from sendgrid.helpers.mail import Email, Content, Mail
 from marrow.mailer.exc import MailConfigurationException, DeliveryFailedException, MessageFailedException
 
 __all__ = ['SendgridTransport']
@@ -26,29 +26,22 @@ class SendgridTransport(object):
     
     def deliver(self, message):
 
-        to = message.to
+        to = Email(message.to)
+        author = Email(email=message.author[0].address.encode(message.encoding), name=message.author[0].name.encode(message.encoding))
+        mail = Mail(author, message.subject.encode(message.encoding), to, Content('text/plain', message.plain))
 
+        if message.rich:
+            mail.add_content(Content('text/html', message.rich))
+        
         # Sendgrid doesn't accept CC over the api
         if message.cc:
-            to.extend(message.cc)
-
-        args = dict({
-                'from': [fromaddr.address.encode(message.encoding) for fromaddr in message.author],
-                'fromname': [fromaddr.name.encode(message.encoding) for fromaddr in message.author],
-                'to': [toaddr.address.encode(message.encoding) for toaddr in to],
-                'toname': [toaddr.name.encode(message.encoding) for toaddr in to],
-                'subject': message.subject.encode(message.encoding),
-                'text': message.plain.encode(message.encoding)
-            })
+            mail.personalizations[0].add_to(Email(message.cc))
 
         if message.bcc:
-            args['bcc'] = [bcc.address.encode(message.encoding) for bcc in message.bcc]
+            mail.personalizations[0].add_bcc(Email(message.bss[0].address.encode(message.encoding)))
         
         if message.reply:
-            args['replyto'] = message.reply.encode(message.encoding)
-        
-        if message.rich:
-            args['html'] = message.rich.encode(message.encoding)
+            mail.reply_to = message.reply.encode(message.encoding)
         
         if message.attachments:
             # Not implemented yet
@@ -65,31 +58,16 @@ class SendgridTransport(object):
             """
             raise MailConfigurationException()
         
-        if not self.bearer:
-            args['api_user'] = self.user
-            args['api_key'] = self.key
-
-        request = urllib2.Request(
-                "https://sendgrid.com/api/mail.send.json",
-                urllib.urlencode(args, True)
-            )
-
-        if self.bearer:
-            request.add_header("Authorization", "Bearer %s" % self.key)
         
-        try:
-            response = urllib2.urlopen(request)
-        except (urllib2.HTTPError, urllib2.URLError):
-            raise DeliveryFailedException(message, "Could not connect to Sendgrid.")
-        else:
-            respcode = response.getcode()
 
-            if respcode >= 400 and respcode <= 499:
-                raise MessageFailedException(response.read())
-            elif respcode >= 500 and respcode <= 599:
-                raise DeliveryFailedException(message, "Sendgrid service unavailable.")
-            
-            response.close()
+        sg = sendgrid.SendGridAPIClient(apikey=self.key)
+        response = sg.client.mail.send.post(request_body=mail.get())
+        respcode = response.status_code
+
+        if respcode >= 400 and respcode <= 499:
+            raise MessageFailedException(response.read())
+        elif respcode >= 500 and respcode <= 599:
+            raise DeliveryFailedException(message, "Sendgrid service unavailable.")
     
     def shutdown(self):
         pass

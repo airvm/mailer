@@ -64,6 +64,7 @@ setup(
 		
 		install_requires = [
 				'marrow.util < 2.0',
+				'sendgrid < 6.0'
 			],
 		
 		extras_require = {
