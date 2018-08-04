@@ -14,21 +14,15 @@ class SendgridTransport(object):
     __slots__ = ('ephemeral', 'user', 'key', 'bearer')
     
     def __init__(self, config):
-        self.bearer = False
-        if not 'user' in config:
-            self.bearer = True
-        else:
-            self.user = config.get('user')
         self.key = config.get('key')
     
     def startup(self):
         pass
     
     def deliver(self, message):
-
-        to = Email(message.to)
-        author = Email(email=message.author[0].address.encode(message.encoding), name=message.author[0].name.encode(message.encoding))
-        mail = Mail(author, message.subject.encode(message.encoding), to, Content('text/plain', message.plain))
+        to = Email(email=str(message.to))
+        author = Email(email=str(message.author))
+        mail = Mail(author, str(message.subject), to, Content('text/plain', str(message.plain)))
 
         if message.rich:
             mail.add_content(Content('text/html', message.rich))
@@ -38,7 +32,7 @@ class SendgridTransport(object):
             mail.personalizations[0].add_to(Email(message.cc))
 
         if message.bcc:
-            mail.personalizations[0].add_bcc(Email(message.bss[0].address.encode(message.encoding)))
+            mail.personalizations[0].add_bcc(Email(message.bcc.encode(message.encoding)))
         
         if message.reply:
             mail.reply_to = message.reply.encode(message.encoding)
@@ -58,8 +52,6 @@ class SendgridTransport(object):
             """
             raise MailConfigurationException()
         
-        
-
         sg = sendgrid.SendGridAPIClient(apikey=self.key)
         response = sg.client.mail.send.post(request_body=mail.get())
         respcode = response.status_code
